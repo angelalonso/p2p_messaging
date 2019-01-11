@@ -1,6 +1,8 @@
-# golang-p2p-chat
+# P2P messaging
 
-console chat with auto reconnection and TLS encryption written in go
+Console chat with auto reconnection and TLS encryption written in go
+
+Based on https://github.com/faroyam/golang-p2p-chat
 
 ### Installing
 
@@ -14,7 +16,7 @@ go get github.com/faroyam/golang-p2p-chat
 ```
 bash makeCerts.sh
 ```
-2. Run chat
+2. Run P2P Messaging
 ```
-go build chat.go && ./chat <username> <remote IP> 
+go build p2pmsg.go && ./p2pmsg <username> <port to accept traffic> <remote IP:Port> 
 ```

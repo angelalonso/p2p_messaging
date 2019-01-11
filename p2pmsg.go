@@ -12,7 +12,35 @@ import (
 	"time"
 )
 
+type message struct {
+	UserName string `json:"username"`
+	Text     string `json:"text"`
+}
+
+type user struct {
+	UserName string
+	IpPort   string
+}
+
 func main() {
+	self := user{}
+	remote := []user{}
+	// check parameters received
+	if len(os.Args) < 3 {
+		help()
+		os.Exit(2)
+	} else {
+		self.UserName = os.Args[1]
+		self.IpPort = "127.0.0.1:" + os.Args[2]
+		// TODO: take more than one remote address
+		if len(os.Args) > 3 {
+			remote = append(remote, user{
+				IpPort: os.Args[3],
+			})
+		} else {
+			remote = append(remote, user{})
+		}
+	}
 	certSender, err := tls.LoadX509KeyPair("certs/client.pem", "certs/client.key")
 	if err != nil {
 		log.Fatalf("client: loadkeys: %s", err)
@@ -25,34 +53,36 @@ func main() {
 	}
 	configListener := tls.Config{Certificates: []tls.Certificate{certListener}}
 
-	if len(os.Args) < 3 {
-		fmt.Println("first argument is your username\nsecond argument is remote ip addr")
-		return
-	}
-	username := os.Args[1]
-	remoteAddr := os.Args[2]
 	var wg sync.WaitGroup
 	m := make(chan message)
 	c := make(chan bool)
 
-	fmt.Printf("Welcome, %s\nREMOTE: %s\n", username, remoteAddr)
+	fmt.Println(len(remote))
 
-	go listener(&configListener, &wg, c)
-	go sender(remoteAddr, &configSender, m, c)
-	go read(m, username)
+	fmt.Printf("Welcome, %s\nREMOTE: %s\n", self.UserName, remote[0].IpPort)
+
+	go listener(strings.Split(self.IpPort, `:`)[1], &configListener, &wg, c)
+	go sender(remote, &configSender, m, c)
+	go read(m, self.UserName)
 	wg.Add(3)
 
 	wg.Wait()
+
+	// create list of users, including oneself
+
+	// send one's data to other user
+
+	// receive other users' data and add to our list
+
+	// send message to all in list
+
+	// receive message
+
 }
 
-type message struct {
-	Username string `json:"username"`
-	Text     string `json:"text"`
-}
-
-func listener(config *tls.Config, wg *sync.WaitGroup, c chan bool) {
+func listener(localPort string, config *tls.Config, wg *sync.WaitGroup, c chan bool) {
 	defer wg.Done()
-	ln, err := tls.Listen("tcp", ":49228", config)
+	ln, err := tls.Listen("tcp", ":"+localPort, config)
 	if err != nil {
 		log.Println("Starting listener error!", err)
 		return
@@ -76,17 +106,17 @@ func listener(config *tls.Config, wg *sync.WaitGroup, c chan bool) {
 				break
 			}
 			if msg.Text != "" {
-				log.Printf("%s: %s", msg.Username, msg.Text)
+				log.Printf("%s: %s", msg.UserName, msg.Text)
 				fmt.Print(">>")
 			}
 		}
 	}
 }
 
-func sender(remoteAddr string, config *tls.Config, m chan message, c chan bool) {
+func sender(remote []user, config *tls.Config, m chan message, c chan bool) {
 CONNECTION:
 	for {
-		conn, err := tls.Dial("tcp", remoteAddr+":49228", config)
+		conn, err := tls.Dial("tcp", remote[0].IpPort, config)
 		if err != nil {
 			log.Println("Connecting...")
 			time.Sleep(3 * time.Second)
@@ -112,9 +142,9 @@ CONNECTION:
 	}
 }
 
-func read(m chan message, username string) {
+func read(m chan message, userName string) {
 	var reader = bufio.NewReader(os.Stdin)
-	var msg = message{Username: username}
+	var msg = message{UserName: userName}
 	for {
 		fmt.Print(">>")
 		if text, _ := reader.ReadString('\n'); text != "\n" {
@@ -123,4 +153,12 @@ func read(m chan message, username string) {
 			m <- msg
 		}
 	}
+}
+
+func help() {
+	fmt.Println(`ERROR:
+You need at least two parameters
+
+SYNTAX:
+p2pmsg <your user name> <your Port> <remote IP:remotePort>`)
 }
